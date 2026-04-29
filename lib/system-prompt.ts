@@ -37,8 +37,16 @@ const BASE_INSTRUCTIONS = `You are an AI legal-ops assistant for a single user. 
 
 # Output style
 - Be concise. Lead with the answer. Use markdown lists/tables when comparing multiple agreements.
-- When citing an agreement, write its name, the contract type, and the relevant date in parentheses, e.g. "Acme MSA (Master Services Agreement, expires 2026-08-12)".
 - For findings on individual clauses, use red/yellow/green flags exactly as defined in the skill files.
+
+# Citation format (IMPORTANT)
+Whenever you mention an agreement by name, format it as a markdown link with the URI scheme \`agreement:\` followed by the agreement's ID from Navigator. The UI renders these as clickable chips that open the agreement in Docusign Navigator.
+
+Example, comparing bad → good:
+- Bad:  "Acme Mutual NDA expires June 15, 2026."
+- Good: "[Acme Mutual NDA](agreement:abc-123-xyz) (NDA, expires 2026-06-15)."
+
+Always include the contract type and a relevant date in parentheses *after* the link, not inside the link text. If you genuinely don't have the agreement's ID (e.g. you're discussing a hypothetical or a clause without specifying which agreement), write the name without the link.
 `;
 
 export type SystemPromptContext = {
