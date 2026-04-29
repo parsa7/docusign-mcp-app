@@ -5,7 +5,7 @@ import { MarkdownRender } from "./MarkdownRender";
 import { ToolCallCard, type ToolCall, type ToolResult } from "./ToolCallCard";
 
 type TextBlock = { kind: "text"; text: string };
-type ToolUseBlock = { kind: "tool_use"; data: ToolCall };
+type ToolUseBlock = { kind: "tool_use"; data: ToolCall; pendingJson?: string };
 type ToolResultBlock = { kind: "tool_result"; data: ToolResult };
 type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
 
@@ -288,6 +288,7 @@ function applyEvent(msg: Msg, eventName: string, data: unknown): Msg {
             server_name: block.server_name as string,
             input: block.input ?? {},
           },
+          pendingJson: "",
         };
       } else if (block.type === "mcp_tool_result") {
         blocks[idx] = {
@@ -312,13 +313,30 @@ function applyEvent(msg: Msg, eventName: string, data: unknown): Msg {
       if (delta.type === "text_delta" && target.kind === "text") {
         blocks[idx] = { kind: "text", text: target.text + (delta.text as string) };
       } else if (delta.type === "input_json_delta" && target.kind === "tool_use") {
-        // We don't strictly need to parse this — the final input is applied at content_block_stop.
+        const partial = (delta.partial_json as string) || "";
+        blocks[idx] = {
+          ...target,
+          pendingJson: (target.pendingJson ?? "") + partial,
+        };
       }
       return { ...msg, blocks };
     }
     case "content_block_stop": {
-      // No-op — final block content was set on _start (and updated by deltas for text).
-      return msg;
+      const idx = ev.index as number;
+      const target = blocks[idx];
+      if (target?.kind === "tool_use" && target.pendingJson && target.pendingJson.length > 0) {
+        try {
+          const parsed = JSON.parse(target.pendingJson);
+          blocks[idx] = {
+            ...target,
+            data: { ...target.data, input: parsed },
+            pendingJson: undefined,
+          };
+        } catch {
+          // partial_json was malformed (rare). Leave the block as-is.
+        }
+      }
+      return { ...msg, blocks };
     }
     case "message_start": {
       const m = ev.message as Record<string, unknown>;
